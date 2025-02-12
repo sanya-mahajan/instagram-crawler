@@ -22,12 +22,16 @@ class Browser:
             chrome_options.add_argument("--headless")
         chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("user-agent="+UserAgent().random)
-        self.driver = webdriver.Chrome(
-            executable_path="%s/bin/chromedriver" % dir_path,
-            service_args=service_args,
-            chrome_options=chrome_options,
-        )
+        # change-1 : fake-user-agent
+        # chrome_options.add_argument("user-agent="+UserAgent().random)
+        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+        # self.driver = webdriver.Chrome(
+        #     executable_path="%s/bin/chromedriver" % dir_path,
+        #     service_args=service_args,
+        #     chrome_options=chrome_options,
+        # )
+        # change-2 : chromedriver
+        self.driver = webdriver.Chrome(executable_path="/opt/homebrew/bin/chromedriver")
         self.driver.implicitly_wait(5)
 
     @property

@@ -12,7 +12,7 @@ from time import sleep
 
 from tqdm import tqdm
 
-from . import secret
+from .secret import secret
 from .browser import Browser
 from .exceptions import RetryException
 from .fetch import fetch_caption
@@ -25,6 +25,11 @@ from .fetch import fetch_details
 from .utils import instagram_int
 from .utils import randmized_sleep
 from .utils import retry
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 
 class Logging(object):
@@ -70,21 +75,44 @@ class InsCrawler(Logging):
         self.login()
 
     def _dismiss_login_prompt(self):
-        ele_login = self.browser.find_one(".Ls00D .Szr5J")
-        if ele_login:
-            ele_login.click()
+        try:
+            # Wait for the pop-up if it appears
+            WebDriverWait(self.browser.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Not Now')]"))
+            ).click()
+            print("Dismissed login prompt")
+        except TimeoutException:
+            print("No login prompt detected")
 
     def login(self):
         browser = self.browser
-        url = "%s/accounts/login/" % (InsCrawler.URL)
-        browser.get(url)
-        u_input = browser.find_one('input[name="username"]')
-        u_input.send_keys(secret.username)
-        p_input = browser.find_one('input[name="password"]')
-        p_input.send_keys(secret.password)
+        try:
+            url = "%s/accounts/login/" % (InsCrawler.URL)
+            browser.driver.get(url)
+            time.sleep(3)  # Add a delay to reduce bot detection
 
-        login_btn = browser.find_one(".L3NKy")
-        login_btn.click()
+            # Enter Username :
+            u_input = browser.find_one('input[name="username"]')
+            u_input.send_keys(secret['username'])
+
+            # Enter Password
+            p_input = browser.find_one('input[name="password"]') 
+            p_input.send_keys(secret['password'])
+
+            # Pressing login button
+            login_btn = browser.find_one(".L3NKy")
+            login_btn = WebDriverWait(browser.driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']"))
+            )
+            browser.driver.execute_script("arguments[0].click();", login_btn)
+            time.sleep(1)  # Wait before interacting with elements
+            login_btn.click()
+
+            # Block further login prompts
+            self._dismiss_login_prompt()
+
+        except Exception as e:
+            print(f" Error in logging in : {e}")    
 
         @retry()
         def check_login():
@@ -97,19 +125,110 @@ class InsCrawler(Logging):
         browser = self.browser
         url = "%s/%s/" % (InsCrawler.URL, username)
         browser.get(url)
-        name = browser.find_one(".rhpdm")
-        desc = browser.find_one(".-vDIg span")
-        photo = browser.find_one("._6q-tv")
-        statistics = [ele.text for ele in browser.find(".g47SY")]
-        post_num, follower_num, following_num = statistics
+        
+        time.sleep(5)  # Ensures all elements load
+
+        try:
+            # Wait for the h2 tag that contains the username
+            WebDriverWait(browser.driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "h2"))
+            )
+
+            # Extract h2
+            h2_element = browser.find_one("h2")
+
+            if h2_element:
+                # Extract the span inside h2
+                name_span = h2_element.find_element(By.TAG_NAME, "span")
+                profile_name = name_span.text if name_span else "N/A"
+            else:
+                profile_name = "N/A"
+
+            # Extract bio description
+            desc = browser.find_one(".-vDIg span")  
+            bio_text = desc.text if desc else "N/A"
+
+            # Extract profile picture
+            photo = browser.find_one("._6q-tv")
+            photo_url = photo.get_attribute("src") if photo else "N/A"
+
+            # Wait for statistics section (posts, followers, following)
+            WebDriverWait(browser.driver, 20).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "xc3tme8"))
+            )
+            stats_section = browser.find_one(".xc3tme8")
+
+            if not stats_section:
+                raise ValueError("Profile statistics section not found")
+
+            statistics = [ele.text for ele in stats_section.find_elements(By.TAG_NAME, "span")]
+
+            if len(statistics) < 3:
+                raise ValueError("Profile statistics did not load correctly")
+
+            post_num, follower_num, following_num = statistics[:3]
+
+        except TimeoutException as e:
+            raise ValueError(f"Profile elements did not load in time: {e}")
+
+        except Exception as e:
+            print(f"Error retrieving profile details: {e}")
+            post_num, follower_num, following_num = "N/A", "N/A", "N/A"
+
         return {
-            "name": name.text,
-            "desc": desc.text if desc else None,
-            "photo_url": photo.get_attribute("src"),
+            "name": profile_name,
+            "desc": bio_text,
+            "photo_url": photo_url,
             "post_num": post_num,
             "follower_num": follower_num,
             "following_num": following_num,
         }
+
+    # def get_user_profile(self, username):
+    #     browser = self.browser
+    #     url = "%s/%s/" % (InsCrawler.URL, username)
+    #     browser.get(url)
+    #     name = browser.find_one(".rhpdm")
+    #     desc = browser.find_one(".-vDIg span")
+    #     photo = browser.find_one("._6q-tv")
+    #     # Statistics data old 
+    #     # statistics = [ele.text for ele in browser.find(".g47SY")]
+    #     # post_num, follower_num, following_num = statistics
+    #     try:
+    #         # Wait for the profile statistics section to be visible
+    #         WebDriverWait(browser.driver, 20).until(
+    #             EC.presence_of_element_located((By.CLASS_NAME, "xc3tme8"))
+    #         )
+
+    #         # Now extract the values inside the section
+    #         stats_section = browser.find_one(".xc3tme8")
+
+    #         if not stats_section:
+    #             raise ValueError("Profile statistics section not found")
+
+    #         # Find all number elements inside the section
+    #         statistics = [ele.text for ele in stats_section.find_elements(By.TAG_NAME, "span")]
+
+    #         if len(statistics) < 3:
+    #             raise ValueError("Profile statistics did not load correctly")
+
+    #         post_num, follower_num, following_num = statistics[:3]  # Extract first 3 values
+
+    #     except TimeoutException:
+    #         raise ValueError("Profile statistics did not load in time")
+
+    #     except Exception as e:
+    #         print(f"Error retrieving profile statistics: {e}")
+    #         post_num, follower_num, following_num = "N/A", "N/A", "N/A"  # Return placeholders
+
+    #     return {
+    #         "name": name.text,
+    #         "desc": desc.text if desc else None,
+    #         "photo_url": photo.get_attribute("src"),
+    #         "post_num": post_num,
+    #         "follower_num": follower_num,
+    #         "following_num": following_num,
+    #     }
 
     def get_user_profile_from_script_shared_data(self, username):
         browser = self.browser
@@ -253,10 +372,299 @@ class InsCrawler(Logging):
             posts.sort(key=lambda post: post["datetime"], reverse=True)
         return posts
 
+    # def _get_posts(self, num):
+    #     """
+    #         To get posts, we have to click on the load more
+    #         button and make the browser call post api.
+    #     """
+    #     TIMEOUT = 600
+    #     browser = self.browser
+    #     key_set = set()
+    #     posts = []
+    #     pre_post_num = 0
+    #     wait_time = 1
+
+    #     pbar = tqdm(total=num)
+
+    #     def start_fetching(pre_post_num, wait_time):
+    #     # Find all post containers
+    #         ele_posts = browser.find("div.x1lliihq")  # Updated selector
+
+    #         print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # 🔍 Debugging line
+
+    #         for ele in ele_posts:
+    #             try:
+    #                 # Extract post link
+    #                 post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
+
+    #                 if post_link not in key_set:
+    #                     dict_post = {"key": post_link}
+
+    #                     # Extract image inside the post
+    #                     try:
+    #                         img = ele.find_element(By.CSS_SELECTOR, "div._aagv img")
+    #                         dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
+    #                     except:
+    #                         dict_post["img_url"] = "N/A"
+
+    #                     key_set.add(post_link)
+    #                     posts.append(dict_post)
+
+    #                     if len(posts) == num:
+    #                         break
+    #             except Exception as e:
+    #                 print(f"Error extracting post data: {e}")
+
+                  
+
+    #         if pre_post_num == len(posts):
+    #             pbar.set_description("Wait for %s sec" % (wait_time))
+    #             sleep(wait_time)
+    #             pbar.set_description("fetching")
+
+    #             wait_time *= 2
+    #             browser.scroll_up(300)
+    #         else:
+    #             wait_time = 1
+
+    #         pre_post_num = len(posts)
+    #         browser.scroll_down()
+
+    #         return pre_post_num, wait_time
+
+
+    #     # def start_fetching(pre_post_num, wait_time):
+    #     #     ele_posts = browser.find(".v1Nh3 a")
+
+    #     #     print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # Debugging line
+    #     #     for ele in ele_posts:
+    #     #         key = ele.get_attribute("href")
+    #     #         if key not in key_set:
+    #     #             dict_post = { "key": key }
+    #     #             ele_img = browser.find_one(".KL4Bh img", ele)
+    #     #             dict_post["caption"] = ele_img.get_attribute("alt")
+    #     #             dict_post["img_url"] = ele_img.get_attribute("src")
+
+    #     #             fetch_details(browser, dict_post)
+
+    #     #             key_set.add(key)
+    #     #             posts.append(dict_post)
+
+    #     #             if len(posts) == num:
+    #     #                 break
+
+    #     #     if pre_post_num == len(posts):
+    #     #         pbar.set_description("Wait for %s sec" % (wait_time))
+    #     #         sleep(wait_time)
+    #     #         pbar.set_description("fetching")
+
+    #     #         wait_time *= 2
+    #     #         browser.scroll_up(300)
+    #     #     else:
+    #     #         wait_time = 1
+
+    #     #     pre_post_num = len(posts)
+    #     #     browser.scroll_down()
+
+    #     #     return pre_post_num, wait_time
+
+    #     pbar.set_description("fetching")
+    #     while len(posts) < num and wait_time < TIMEOUT:
+    #         post_num, wait_time = start_fetching(pre_post_num, wait_time)
+    #         pbar.update(post_num - pre_post_num)
+    #         pre_post_num = post_num
+
+    #         loading = browser.find_one(".W1Bne")
+    #         if not loading and wait_time > TIMEOUT / 2:
+    #             break
+
+    #     pbar.close()
+    #     print("Done. Fetched %s posts." % (min(len(posts), num)))
+    #     return posts[:num]
+    # def _get_posts(self, num):
+    #     """
+    #     Extracts posts, including images, captions, and collaborators.
+    #     """
+    #     TIMEOUT = 600
+    #     browser = self.browser
+    #     key_set = set()
+    #     posts = []
+    #     pre_post_num = 0
+    #     wait_time = 1
+
+    #     pbar = tqdm(total=num)
+
+    #     def start_fetching(pre_post_num, wait_time):
+    #         # Find all post containers
+    #         ele_posts = browser.find("div.x1lliihq")    # Updated selector
+
+    #         print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # 🔍 Debugging line
+
+    #         for ele in ele_posts:
+    #             try:
+    #                 # Extract post link
+    #                 post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
+
+    #                 if post_link not in key_set:
+    #                     dict_post = {"key": post_link}
+
+    #                     # Extract image inside the post
+    #                     try:
+    #                         img = ele.find_element(By.CSS_SELECTOR, "div._aagv img")
+    #                         dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
+    #                     except:
+    #                         dict_post["img_url"] = "N/A"
+
+    #                     # Extract caption
+    #                     try:
+    #                         caption_elem = ele.find_element(By.CSS_SELECTOR, "h1")
+    #                         dict_post["caption"] = caption_elem.text if caption_elem else "N/A"
+
+    #                         # Extract collaborators (user mentions in <a> tags)
+    #                         collab_links = caption_elem.find_elements(By.TAG_NAME, "a")
+    #                         collaborators = [link.text for link in collab_links if link.text.startswith("@")]
+    #                         dict_post["collaborators"] = collaborators if collaborators else "None"
+    #                     except Exception as e:
+    #                         print(f"Error extracting caption or collaborators: {e}")
+    #                         dict_post["caption"] = "N/A"
+    #                         dict_post["collaborators"] = "None"
+
+    #                     key_set.add(post_link)
+    #                     posts.append(dict_post)
+
+    #                     if len(posts) == num:
+    #                         break
+    #             except Exception as e:
+    #                 print(f"Error extracting post data: {e}")
+
+    #         if pre_post_num == len(posts):
+    #             pbar.set_description("Wait for %s sec" % (wait_time))
+    #             sleep(wait_time)
+    #             pbar.set_description("fetching")
+
+    #             wait_time *= 2
+    #             browser.scroll_up(300)
+    #         else:
+    #             wait_time = 1
+
+    #         pre_post_num = len(posts)
+    #         browser.scroll_down()
+
+    #         return pre_post_num, wait_time
+
+    #     pbar.set_description("fetching")
+    #     while len(posts) < num and wait_time < TIMEOUT:
+    #         post_num, wait_time = start_fetching(pre_post_num, wait_time)
+    #         pbar.update(post_num - pre_post_num)
+    #         pre_post_num = post_num
+
+    #         loading = browser.find_one(".W1Bne")
+    #         if not loading and wait_time > TIMEOUT / 2:
+    #             break
+
+    #     pbar.close()
+    #     print("Done. Fetched %s posts." % (min(len(posts), num)))
+    #     return posts[:num]
+
+
+    # def _get_posts(self, num):
+    #     """
+    #     Extracts posts, including images, captions, and collaborators.
+    #     """
+    #     from selenium.webdriver.common.by import By
+    #     from selenium.webdriver.support.ui import WebDriverWait
+    #     from selenium.webdriver.support import expected_conditions as EC
+
+    #     TIMEOUT = 600
+    #     browser = self.browser
+    #     key_set = set()
+    #     posts = []
+    #     pre_post_num = 0
+    #     wait_time = 1
+
+    #     pbar = tqdm(total=num)
+
+    #     def start_fetching(pre_post_num, wait_time):
+    #         # Find all post containers
+    #         ele_posts = browser.find("div.x1lliihq")  # Updated selector
+
+    #         print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # 🔍 Debugging line
+
+    #         for ele in ele_posts:
+    #             try:
+    #                 # Extract post link
+    #                 post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
+
+    #                 if post_link not in key_set:
+    #                     dict_post = {"key": post_link}
+
+    #                     # Extract image inside the post
+    #                     try:
+    #                         img = ele.find_element(By.CSS_SELECTOR, "div._aagv img")
+    #                         dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
+    #                     except:
+    #                         dict_post["img_url"] = "N/A"
+
+    #                     # Extract caption and collaborators
+    #                     try:
+    #                         # Wait until the caption appears
+    #                         caption_elem = WebDriverWait(ele, 5).until(
+    #                             EC.presence_of_element_located((By.CSS_SELECTOR, "div.xt0psk2 h1"))
+    #                         )
+    #                         dict_post["caption"] = caption_elem.text if caption_elem else "N/A"
+
+    #                         # Extract collaborator mentions
+    #                         collab_links = caption_elem.find_elements(By.TAG_NAME, "a")
+    #                         collaborators = [link.text for link in collab_links if link.text.startswith("@")]
+    #                         dict_post["collaborators"] = collaborators if collaborators else "None"
+
+    #                     except Exception as e:
+    #                         print(f"Error extracting caption or collaborators: {e}")
+    #                         dict_post["caption"] = "N/A"
+    #                         dict_post["collaborators"] = "None"
+
+    #                     key_set.add(post_link)
+    #                     posts.append(dict_post)
+
+    #                     if len(posts) == num:
+    #                         break
+    #             except Exception as e:
+    #                 print(f"Error extracting post data: {e}")
+
+    #         if pre_post_num == len(posts):
+    #             pbar.set_description("Wait for %s sec" % (wait_time))
+    #             sleep(wait_time)
+    #             pbar.set_description("fetching")
+
+    #             wait_time *= 2
+    #             browser.scroll_up(300)
+    #         else:
+    #             wait_time = 1
+
+    #         pre_post_num = len(posts)
+    #         browser.scroll_down()
+
+    #         return pre_post_num, wait_time
+
+    #     pbar.set_description("fetching")
+    #     while len(posts) < num and wait_time < TIMEOUT:
+    #         post_num, wait_time = start_fetching(pre_post_num, wait_time)
+    #         pbar.update(post_num - pre_post_num)
+    #         pre_post_num = post_num
+
+    #         loading = browser.find_one(".W1Bne")
+    #         if not loading and wait_time > TIMEOUT / 2:
+    #             break
+
+    #     pbar.close()
+    #     print("Done. Fetched %s posts." % (min(len(posts), num)))
+    #     return posts[:num]
+
+
     def _get_posts(self, num):
         """
-            To get posts, we have to click on the load more
-            button and make the browser call post api.
+        Extracts posts, including images, captions, and collaborators.
+        Since collaborator info is inside the post, each post must be clicked and opened.
         """
         TIMEOUT = 600
         browser = self.browser
@@ -268,22 +676,51 @@ class InsCrawler(Logging):
         pbar = tqdm(total=num)
 
         def start_fetching(pre_post_num, wait_time):
-            ele_posts = browser.find(".v1Nh3 a")
+            # Find all post containers
+            ele_posts = browser.find("div.x1lliihq")  # Updated selector
+
+            print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # Debugging line
+
             for ele in ele_posts:
-                key = ele.get_attribute("href")
-                if key not in key_set:
-                    dict_post = { "key": key }
-                    ele_img = browser.find_one(".KL4Bh img", ele)
-                    dict_post["caption"] = ele_img.get_attribute("alt")
-                    dict_post["img_url"] = ele_img.get_attribute("src")
+                try:
+                    # Extract post link
+                    post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
 
-                    fetch_details(browser, dict_post)
+                    if post_link not in key_set:
+                        dict_post = {"key": post_link}
 
-                    key_set.add(key)
-                    posts.append(dict_post)
+                        # Extract image inside the post
+                        try:
+                            img = ele.find_element(By.CSS_SELECTOR, "div._aagv img")
+                            dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
+                        except:
+                            dict_post["img_url"] = "N/A"
 
-                    if len(posts) == num:
-                        break
+                        # Visit the post to extract caption & collaborators
+                        try:
+                            browser.get(post_link)
+                            time.sleep(2)  # Allow time for content to load
+
+                            # Extract caption
+                            caption_elem = browser.find_one("h1._ap3a")  # Check selector accuracy
+                            dict_post["caption"] = caption_elem.text if caption_elem else "N/A"
+
+                            # Extract collaborators (user mentions in <a> tags)
+                            collab_links = caption_elem.find_elements(By.TAG_NAME, "a") if caption_elem else []
+                            collaborators = [link.text for link in collab_links if link.text.startswith("@")]
+                            dict_post["collaborators"] = collaborators if collaborators else "None"
+                        except Exception as e:
+                            print(f"Error extracting caption or collaborators: {e}")
+                            dict_post["caption"] = "N/A"
+                            dict_post["collaborators"] = "None"
+
+                        key_set.add(post_link)
+                        posts.append(dict_post)
+
+                        if len(posts) == num:
+                            break
+                except Exception as e:
+                    print(f"Error extracting post data: {e}")
 
             if pre_post_num == len(posts):
                 pbar.set_description("Wait for %s sec" % (wait_time))
@@ -313,3 +750,4 @@ class InsCrawler(Logging):
         pbar.close()
         print("Done. Fetched %s posts." % (min(len(posts), num)))
         return posts[:num]
+
