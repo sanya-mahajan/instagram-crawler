@@ -251,8 +251,8 @@ class InsCrawler(Logging):
             "website": user_data["external_url"],
         }
 
-    def get_user_posts(self, username, number=None, detail=False):
-        user_profile = self.get_user_profile(username)
+    def get_user_posts(self, handle, number=None, detail=False):
+        user_profile = self.get_user_profile(handle)
         if not number:
             number = instagram_int(user_profile["post_num"])
 
@@ -261,12 +261,12 @@ class InsCrawler(Logging):
         if detail:
             return self._get_posts_full(number)
         else:
-            return self._get_posts(number)
+            return self._get_posts(number,handle)
 
-    def get_latest_posts_by_tag(self, tag, num):
+    def get_latest_posts_by_tag(self, tag, num,handle):
         url = "%s/explore/tags/%s/" % (InsCrawler.URL, tag)
         self.browser.get(url)
-        return self._get_posts(num)
+        return self._get_posts(num,handle)
 
     def auto_like(self, tag="", maximum=1000):
         self.login()
@@ -293,7 +293,7 @@ class InsCrawler(Logging):
             else:
                 break
 
-    def _get_posts_full(self, num):
+    def _get_posts_full(self, num,handle):
         @retry()
         def check_next_post(cur_key):
             ele_a_datetime = browser.find_one(".eo2As .c-Yi7")
@@ -317,7 +317,7 @@ class InsCrawler(Logging):
         pbar.set_description("fetching")
         cur_key = None
 
-        all_posts = self._get_posts(num)
+        all_posts = self._get_posts(num,handle)
         i = 1
 
         # Fetching all posts
@@ -567,173 +567,128 @@ class InsCrawler(Logging):
     #     return posts[:num]
 
 
-    # def _get_posts(self, num):
-    #     """
-    #     Extracts posts, including images, captions, and collaborators.
-    #     """
-    #     from selenium.webdriver.common.by import By
-    #     from selenium.webdriver.support.ui import WebDriverWait
-    #     from selenium.webdriver.support import expected_conditions as EC
-
-    #     TIMEOUT = 600
-    #     browser = self.browser
-    #     key_set = set()
-    #     posts = []
-    #     pre_post_num = 0
-    #     wait_time = 1
-
-    #     pbar = tqdm(total=num)
-
-    #     def start_fetching(pre_post_num, wait_time):
-    #         # Find all post containers
-    #         ele_posts = browser.find("div.x1lliihq")  # Updated selector
-
-    #         print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # 🔍 Debugging line
-
-    #         for ele in ele_posts:
-    #             try:
-    #                 # Extract post link
-    #                 post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
-
-    #                 if post_link not in key_set:
-    #                     dict_post = {"key": post_link}
-
-    #                     # Extract image inside the post
-    #                     try:
-    #                         img = ele.find_element(By.CSS_SELECTOR, "div._aagv img")
-    #                         dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
-    #                     except:
-    #                         dict_post["img_url"] = "N/A"
-
-    #                     # Extract caption and collaborators
-    #                     try:
-    #                         # Wait until the caption appears
-    #                         caption_elem = WebDriverWait(ele, 5).until(
-    #                             EC.presence_of_element_located((By.CSS_SELECTOR, "div.xt0psk2 h1"))
-    #                         )
-    #                         dict_post["caption"] = caption_elem.text if caption_elem else "N/A"
-
-    #                         # Extract collaborator mentions
-    #                         collab_links = caption_elem.find_elements(By.TAG_NAME, "a")
-    #                         collaborators = [link.text for link in collab_links if link.text.startswith("@")]
-    #                         dict_post["collaborators"] = collaborators if collaborators else "None"
-
-    #                     except Exception as e:
-    #                         print(f"Error extracting caption or collaborators: {e}")
-    #                         dict_post["caption"] = "N/A"
-    #                         dict_post["collaborators"] = "None"
-
-    #                     key_set.add(post_link)
-    #                     posts.append(dict_post)
-
-    #                     if len(posts) == num:
-    #                         break
-    #             except Exception as e:
-    #                 print(f"Error extracting post data: {e}")
-
-    #         if pre_post_num == len(posts):
-    #             pbar.set_description("Wait for %s sec" % (wait_time))
-    #             sleep(wait_time)
-    #             pbar.set_description("fetching")
-
-    #             wait_time *= 2
-    #             browser.scroll_up(300)
-    #         else:
-    #             wait_time = 1
-
-    #         pre_post_num = len(posts)
-    #         browser.scroll_down()
-
-    #         return pre_post_num, wait_time
-
-    #     pbar.set_description("fetching")
-    #     while len(posts) < num and wait_time < TIMEOUT:
-    #         post_num, wait_time = start_fetching(pre_post_num, wait_time)
-    #         pbar.update(post_num - pre_post_num)
-    #         pre_post_num = post_num
-
-    #         loading = browser.find_one(".W1Bne")
-    #         if not loading and wait_time > TIMEOUT / 2:
-    #             break
-
-    #     pbar.close()
-    #     print("Done. Fetched %s posts." % (min(len(posts), num)))
-    #     return posts[:num]
-
-
-    def _get_posts(self, num):
+    def _get_posts(self, num,handle):
         """
-        Extracts posts, including images, captions, and collaborators.
-        Since collaborator info is inside the post, each post must be clicked and opened.
+        Extracts posts, including images, captions, collaborators, and timestamps.
+        Ensures posts belong to the correct profile and prevents scraping from other profiles.
         """
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
         TIMEOUT = 600
         browser = self.browser
         key_set = set()
         posts = []
         pre_post_num = 0
         wait_time = 1
-
         pbar = tqdm(total=num)
 
+        profile_url_prefix = f"https://www.instagram.com/{handle}/"  # Ensure posts belong to the correct user
+
+        def close_post_modal():
+            """Clicks the close button to close the post modal before navigating to the next post."""
+            try:
+                close_button = WebDriverWait(browser.driver, 3).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "div.x6s0dn4 svg[aria-label='Close']"))
+                )
+                close_button.click()
+                print("✅ Closed post modal")
+                time.sleep(2)  # Allow time for the page to reset
+            except Exception as e:
+                print(f"⚠️ Warning: Close button not found or not clickable: {e}")
+
         def start_fetching(pre_post_num, wait_time):
-            # Find all post containers
-            ele_posts = browser.find("div.x1lliihq")  # Updated selector
+            nonlocal num  # Ensure we track the remaining posts correctly
+            scrolled = False  # Keep track if we need to scroll down
 
-            print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # Debugging line
+            while len(posts) < num:
+                # ✅ Find only posts that belong to the target profile
+                ele_posts = browser.find("div.x1lliihq")  # Updated selector for posts
+                print(f"DEBUG: Found {len(ele_posts)} posts on the page")  # Debugging output
 
-            for ele in ele_posts:
-                try:
-                    # Extract post link
-                    post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
+                for ele in ele_posts:
+                    try:
+                        # ✅ Extract post link and check if it belongs to the correct profile
+                        post_link = ele.find_element(By.TAG_NAME, "a").get_attribute("href")
 
-                    if post_link not in key_set:
-                        dict_post = {"key": post_link}
+                        if not post_link.startswith(profile_url_prefix):  # Ensure it's from the target username
+                            print(f"❌ Skipping non-profile post: {post_link}")
+                            continue  # Skip posts from other profiles
 
-                        # Extract image inside the post
-                        try:
-                            img = ele.find_element(By.CSS_SELECTOR, "div._aagv img")
-                            dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
-                        except:
-                            dict_post["img_url"] = "N/A"
+                        if post_link not in key_set:
+                            dict_post = {"key": post_link}
 
-                        # Visit the post to extract caption & collaborators
-                        try:
-                            browser.get(post_link)
-                            time.sleep(2)  # Allow time for content to load
+                            # ✅ Click to open the post modal
+                            browser.js_click(ele.find_element(By.TAG_NAME, "a"))
+                            time.sleep(2)  # Allow time for modal to open
 
-                            # Extract caption
-                            caption_elem = browser.find_one("h1._ap3a")  # Check selector accuracy
-                            dict_post["caption"] = caption_elem.text if caption_elem else "N/A"
+                            # ✅ Extract image inside the post
+                            try:
+                                img = WebDriverWait(browser.driver, 5).until(
+                                    EC.presence_of_element_located((By.CSS_SELECTOR, "div._aagv img"))
+                                )
+                                dict_post["img_url"] = img.get_attribute("src") if img else "N/A"
+                            except:
+                                dict_post["img_url"] = "N/A"
 
-                            # Extract collaborators (user mentions in <a> tags)
-                            collab_links = caption_elem.find_elements(By.TAG_NAME, "a") if caption_elem else []
-                            collaborators = [link.text for link in collab_links if link.text.startswith("@")]
-                            dict_post["collaborators"] = collaborators if collaborators else "None"
-                        except Exception as e:
-                            print(f"Error extracting caption or collaborators: {e}")
-                            dict_post["caption"] = "N/A"
-                            dict_post["collaborators"] = "None"
+                            # ✅ Extract timestamp (post date & time)
+                            try:
+                                time_elem = WebDriverWait(browser.driver, 5).until(
+                                    EC.presence_of_element_located((By.CSS_SELECTOR, "time.x1p4m5qa"))
+                                )
+                                dict_post["timestamp"] = time_elem.get_attribute("datetime")  # Format: 2025-02-02T09:57:16.000Z
+                            except Exception as e:
+                                print(f"Error extracting timestamp: {e}")
+                                dict_post["timestamp"] = "N/A"
 
-                        key_set.add(post_link)
-                        posts.append(dict_post)
+                            # ✅ Extract collaborators from the **header section** (`_aaqt _aaqu`)
+                            try:
+                                header_section = WebDriverWait(browser.driver, 5).until(
+                                    EC.presence_of_element_located((By.CSS_SELECTOR, "div._aaqt._aaqu"))
+                                )
+                                creator_links = header_section.find_elements(By.TAG_NAME, "a")
+                                creators = [link.text.strip() for link in creator_links if link.text.strip()]  # Get account names
+                            except Exception as e:
+                                print(f"Error extracting creators from header: {e}")
+                                creators = []
 
-                        if len(posts) == num:
-                            break
-                except Exception as e:
-                    print(f"Error extracting post data: {e}")
+                            # ✅ Extract caption (within post modal)
+                            try:
+                                caption_elem = WebDriverWait(browser.driver, 5).until(
+                                    EC.presence_of_element_located((By.CSS_SELECTOR, "div.xt0psk2 h1"))
+                                )
+                                dict_post["caption"] = caption_elem.text if caption_elem else "N/A"
 
-            if pre_post_num == len(posts):
-                pbar.set_description("Wait for %s sec" % (wait_time))
-                sleep(wait_time)
-                pbar.set_description("fetching")
+                                # ✅ Extract @mentions inside the caption
+                                collab_links = caption_elem.find_elements(By.TAG_NAME, "a")
+                                mentioned_collaborators = [link.text.strip() for link in collab_links if link.text.startswith("@")]
 
-                wait_time *= 2
-                browser.scroll_up(300)
-            else:
-                wait_time = 1
+                            except Exception as e:
+                                print(f"Error extracting caption or mentions: {e}")
+                                dict_post["caption"] = "N/A"
+                                mentioned_collaborators = []
 
-            pre_post_num = len(posts)
-            browser.scroll_down()
+                            # ✅ Ensure unique collaborators (avoid duplicates)
+                            dict_post["collaborators"] = list(set(creators + mentioned_collaborators))  # Remove duplicates
+
+                            # ✅ Close the post modal before moving to the next post
+                            close_post_modal()
+
+                            key_set.add(dict_post["key"])
+                            posts.append(dict_post)
+
+                            if len(posts) >= num:
+                                return pre_post_num, wait_time  # Stop if we reached the required number
+
+                    except Exception as e:
+                        print(f"Error extracting post data: {e}")
+
+                # ✅ Scroll down if we need more posts
+                if len(posts) < num and not scrolled:
+                    browser.scroll_down()
+                    time.sleep(2)
+                    scrolled = True  # Ensure we don't scroll too frequently
 
             return pre_post_num, wait_time
 
@@ -748,6 +703,5 @@ class InsCrawler(Logging):
                 break
 
         pbar.close()
-        print("Done. Fetched %s posts." % (min(len(posts), num)))
+        print("✅ Done. Successfully fetched", len(posts), "posts.")
         return posts[:num]
-

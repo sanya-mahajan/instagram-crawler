@@ -38,9 +38,9 @@ def get_profile_from_script(username):
     return ins_cralwer.get_user_profile_from_script_shared_data(username)
 
 
-def get_posts_by_hashtag(tag, number, debug):
+def get_posts_by_hashtag(tag, number, debug,handle):
     ins_crawler = InsCrawler(has_screen=debug)
-    return ins_crawler.get_latest_posts_by_tag(tag, number)
+    return ins_crawler.get_latest_posts_by_tag(tag, number,handle)
 
 
 def arg_required(args, fields=[]):
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     elif args.mode == "hashtag":
         arg_required("tag")
         output(
-            get_posts_by_hashtag(args.tag, args.number or 100, args.debug), args.output
+            get_posts_by_hashtag(args.tag, args.number or 100, args.debug,args.username), args.output
         )
     else:
         usage()
