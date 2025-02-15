@@ -1,0 +1,83 @@
+[
+  {
+    "data": {
+      "user": {
+        "friendship_status": null,
+        "gating": null,
+        "is_memorialized": false,
+        "is_private": false,
+        "has_story_archive": null,
+        "supervision_info": null,
+        "is_regulated_c18": false,
+        "regulated_news_in_locations": [],
+        "bio_links": [
+          {
+            "image_url": "",
+            "is_pinned": false,
+            "link_type": "external",
+            "lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Favathletes.com%2F&e=AT0dsCSxkCM_6t7fhXQXuCYcYo5k9Kbkgo0Fcmq8b6r1Ur-ETn1RxmxTM2KdiiSHtq7q6qTiu_OAReYD5Qx5tazPMlBz1GSr",
+            "media_type": "none",
+            "title": "AVA",
+            "url": "https://avathletes.com"
+          }
+        ],
+        "text_post_app_badge_label": null,
+        "show_text_post_app_badge": null,
+        "username": "cristiano",
+        "text_post_new_post_count": null,
+        "pk": "173560420",
+        "live_broadcast_visibility": null,
+        "live_broadcast_id": null,
+        "profile_pic_url": "https://instagram.fblr22-2.fna.fbcdn.net/v/t51.2885-19/472007201_1142000150877579_994350541752907763_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_ht=instagram.fblr22-2.fna.fbcdn.net&_nc_cat=1&_nc_oc=Q6cZ2AHFOn5tcYqwmxvwyYd4tkckrQr7EC6dMq-3ToZJ9IYLiSY0ZhbHuGeqQf0nen-Dvc8&_nc_ohc=nO17TS3oJ8sQ7kNvgEVzrkW&_nc_gid=6afd2ddb1a474dc592f4ccbf01cf41ec&edm=ALGbJPMBAAAA&ccb=7-5&oh=00_AYBbJcV19UCQT3qQeIFLgD-my77k6F5f8c3XPT_8NwVbEg&oe=67B6009E&_nc_sid=7d3ac5",
+        "hd_profile_pic_url_info": {
+          "url": "https://instagram.fblr22-2.fna.fbcdn.net/v/t51.2885-19/472007201_1142000150877579_994350541752907763_n.jpg?_nc_ht=instagram.fblr22-2.fna.fbcdn.net&_nc_cat=1&_nc_oc=Q6cZ2AHFOn5tcYqwmxvwyYd4tkckrQr7EC6dMq-3ToZJ9IYLiSY0ZhbHuGeqQf0nen-Dvc8&_nc_ohc=nO17TS3oJ8sQ7kNvgEVzrkW&_nc_gid=6afd2ddb1a474dc592f4ccbf01cf41ec&edm=ALGbJPMBAAAA&ccb=7-5&oh=00_AYB6oLoPl1Uco6e1tS31ZLm8QNA0eIg4xjISDQX9DB2Pew&oe=67B6009E&_nc_sid=7d3ac5"
+        },
+        "is_unpublished": false,
+        "latest_reel_media": 1739552243,
+        "has_profile_pic": null,
+        "profile_pic_genai_tool_info": [],
+        "biography": "SIUUUbscribe to my Youtube Channel!",
+        "full_name": "Cristiano Ronaldo",
+        "is_verified": true,
+        "show_account_transparency_details": true,
+        "account_type": 3,
+        "follower_count": 649418226,
+        "mutual_followers_count": null,
+        "profile_context_links_with_user_ids": null,
+        "address_street": null,
+        "city_name": null,
+        "is_business": false,
+        "zip": null,
+        "biography_with_entities": null,
+        "category": "Sportsperson",
+        "should_show_category": false,
+        "account_badges": [],
+        "ai_agent_type": null,
+        "fb_profile_bio_link_web": null,
+        "external_lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Favathletes.com%2F&e=AT0dsCSxkCM_6t7fhXQXuCYcYo5k9Kbkgo0Fcmq8b6r1Ur-ETn1RxmxTM2KdiiSHtq7q6qTiu_OAReYD5Qx5tazPMlBz1GSr",
+        "external_url": "https://avathletes.com",
+        "pronouns": [],
+        "transparency_label": null,
+        "transparency_product": null,
+        "has_chaining": null,
+        "remove_message_entrypoint": null,
+        "fbid_v2": "17841401692602711",
+        "is_embeds_disabled": false,
+        "is_professional_account": null,
+        "following_count": 594,
+        "media_count": 3835,
+        "total_clips_count": 1,
+        "latest_besties_reel_media": null,
+        "reel_media_seen_timestamp": null,
+        "id": "173560420"
+      },
+      "viewer": {
+        "user": null
+      }
+    },
+    "extensions": {
+      "is_final": true
+    },
+    "status": "ok"
+  }
+]

@@ -24,15 +24,13 @@ class Browser:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--disable-dev-shm-usage")
-
-        caps = DesiredCapabilities.CHROME
-        caps["goog:loggingPrefs"] = {"performance": "ALL"}
-
-        # ✅ Properly Initialize Chrome WebDriver (Selenium 4+)
+        chrome_options.add_argument("--auto-open-devtools-for-tabs") 
+        chrome_options.add_argument("--enable-logging")
+        chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        
         self.driver = webdriver.Chrome(
-            executable_path="/opt/homebrew/bin/chromedriver",
+            service=Service("/opt/homebrew/bin/chromedriver"),
             options=chrome_options,
-            desired_capabilities=caps
         )
 
         self.driver.implicitly_wait(5)
@@ -60,56 +58,82 @@ class Browser:
         except Exception as e:
             print(f"❌ Error enabling network logging: {e}")
 
+
     def get_network_logs(self):
-        """Retrieves GraphQL network logs from Instagram."""
+        """Retrieves GraphQL XHR network logs from Instagram and saves them to a file."""
         try:
             logs = self.driver.get_log("performance")  # Get browser performance logs
-            print(f"🔍 Captured {len(logs)} network events.") 
+            print(f"🔍 Captured {len(logs)} network events.")  
             graphql_logs = []
 
-            # return graphql_logs
             for log_entry in logs:
-                log_message = json.loads(log_entry["message"])["message"]
+                try:
+                    log_message = json.loads(log_entry["message"])["message"]
 
-                # Check if it's a network response event
-                if "Network.responseReceived" in log_message.get("method", ""):
-                    params = log_message.get("params", {})
-                    response_url = params.get("response", {}).get("url", "")
-                    print(f"🔗 Captured Request: {response_url}")
-                    # Filter only GraphQL requests related to user timeline
-                    if "graphql/query" in response_url and "feed__user_timeline_graphql_connection" in response_url:
-                        request_id = params.get("requestId")
+                    # ✅ Ensure log_message is valid
+                    if not log_message or not isinstance(log_message, dict):
+                        continue
 
-                        # Fetch full response
-                        raw_response = self.driver.execute_cdp_cmd("Network.getResponseBody", {"requestId": request_id})
-                        graphql_data = json.loads(raw_response.get("body", "{}"))
+                    # ✅ Check if it's a network response event
+                    if log_message.get("method", "") == "Network.responseReceived":
+                        params = log_message.get("params", {})
+                        
+                        # ✅ Ensure params is valid
+                        if not params or not isinstance(params, dict):
+                            continue
 
-                        # Extract timeline posts
-                        posts = graphql_data.get("data", {}).get("xdt_api__v1__feed__user_timeline_graphql_connection", {}).get("edges", [])
+                        response_url = params.get("response", {}).get("url", "")
+                        resource_type = params.get("type", "")
 
-                        for post in posts:
-                            node = post.get("node", {})
+                        # ✅ Filter only **XHR requests**
+                        if resource_type != "XHR":
+                            continue  # Skip non-XHR requests
 
-                            post_details = {
-                                "post_id": node.get("id"),
-                                "code": node.get("code"),
-                                "media_pk": node.get("pk"),
-                                "caption": node.get("caption", {}).get("text", "N/A"),
-                                "timestamp": time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(node.get("caption", {}).get("created_at", 0))),
-                                "mentions": [],  # To be extracted later
-                            }
+                        print(f"🔗 Captured XHR Request: {response_url}")  # Debugging output
 
-                            graphql_logs.append(post_details)
+                        # ✅ Filter only GraphQL requests
+                        if "graphql/query" in response_url:
+                            request_id = params.get("requestId")
+                            print(f"📡 GraphQL Request ID: {request_id}")  # Debugging output
+
+                            # Fetch full response using Chrome DevTools Protocol (CDP)
+                            raw_response = self.driver.execute_cdp_cmd(
+                                "Network.getResponseBody", {"requestId": request_id}
+                            )
+
+                            # ✅ Ensure raw_response is valid before parsing JSON
+                            if not raw_response or "body" not in raw_response:
+                                print(f"⚠️ Skipping empty response for {request_id}")
+                                continue
+
+                            graphql_data = json.loads(raw_response.get("body", "{}"))
+
+                            # ✅ Append raw GraphQL response to the list
+                            graphql_logs.append(graphql_data)
+
+                except Exception as e:
+                    print(f"⚠️ Skipping invalid log entry: {e}")
+                    continue  # Skip and continue with the next log
 
             if graphql_logs:
-                print("✅ Extracted GraphQL Post Data:")
-                print(json.dumps(graphql_logs, indent=2))
+                print("✅ Extracted GraphQL XHR Post Data.")
+                
+                # ✅ Dump all responses to a JSON file
+                file_name = "graphql_logs.json"
+                with open(file_name, "w", encoding="utf-8") as file:
+                    json.dump(graphql_logs, file, indent=2)
+
+                print(f"📂 GraphQL responses saved to {file_name}")
+            else:
+                print("⚠️ No valid GraphQL logs found.")
 
             return graphql_logs
 
         except Exception as e:
-            print(f"❌ Error capturing GraphQL response: {e}")
+            print(f"❌ Error capturing GraphQL XHR response: {e}")
             return []
+
+
     @property
     def page_height(self):
         return self.driver.execute_script("return document.body.scrollHeight")
@@ -182,4 +206,11 @@ class Browser:
         except Exception:
             pass
 
-    
+    def send(driver, cmd, params={}):
+        resource = "/session/%s/chromium/send_command_and_get_result" % driver.session_id
+        url = driver.command_executor._url + resource
+        body = json.dumps({'cmd': cmd, 'params': params})
+        response = driver.command_executor._request('POST', url, body)
+        return response.get('value')
+
+        
