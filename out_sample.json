@@ -1,0 +1,34 @@
+[
+    {
+        "media_id": "1234-5678-abc-def",
+        "key": "https://www.instagram.com/cristiano/p/DF8DE3Loyxi/",
+        "img_url": "https://instagram.fblr22-2.fna.fbcdn.net/example1.jpg",
+        "timestamp": "2025-02-11T15:52:59.000Z",
+        "caption": "✌🏽",
+        "media_type": "image",
+        "views": 1200000,
+        "likes": 34567,
+        "hashtag": "#GOAT #Football",
+        "collaborators": "@piersmorgan, @ufc",
+        "comments": [
+            {"author": "fan1", "comment": "Legendary moment! 🔥", "mentions": "@piersmorgan", "timestamp": "2025-02-11T16:00:00.000Z"},
+            {"author": "fan2", "comment": "GOAT 🐐", "mentions": "", "timestamp": "2025-02-11T16:10:30.000Z"}
+        ]
+    },
+    {
+        "media_id": "abcd-efgh-ijkl-9876",
+        "key": "https://www.instagram.com/cristiano/p/DFx_jLuACs3/",
+        "img_url": "https://instagram.fblr22-2.fna.fbcdn.net/example2.jpg",
+        "timestamp": "2025-02-07T18:09:45.000Z",
+        "caption": "A win and first goal after 40! ✌🏽",
+        "media_type": "video",
+        "views": 2300000,
+        "likes": 67890,
+        "hashtag": "#Champions #CR7",
+        "collaborators": "",
+        "comments": [
+            {"author": "messi_fan", "comment": "Not bad, but Messi is better 😉", "mentions": "", "timestamp": "2025-02-07T18:20:00.000Z"},
+            {"author": "cr7_fan", "comment": "Cristiano is unstoppable! 💪", "mentions": "", "timestamp": "2025-02-07T18:30:00.000Z"}
+        ]
+    }
+]
